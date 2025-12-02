@@ -1,3 +1,4 @@
 # proteomics
 
-* limpa package 
+* limpa package for differential analysis
+* spectra for mzml file analysis

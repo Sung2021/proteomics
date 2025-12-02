@@ -1,6 +1,6 @@
 # Proteomics Pipeline - Complete Repository Structure
 
-## 📁 Directory Structure
+## Directory Structure
 ```
 proteomics-pipeline/
  ├── raw/               # Place your mzML files here
@@ -20,7 +20,7 @@ proteomics-pipeline/
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Setup
 ```r
@@ -45,7 +45,7 @@ source("R/04_features.R")
 
 ---
 
-## 📋 Pipeline Overview
+## Pipeline Overview
 
 ### Step 1: Load Data (`01_load.R`)
 - Reads all mzML files from `raw/` directory
@@ -71,7 +71,7 @@ source("R/04_features.R")
 
 ---
 
-## 📊 Output Files
+## Output Files
 
 | File | Description |
 |------|-------------|
@@ -82,7 +82,7 @@ source("R/04_features.R")
 
 ---
 
-## 🔧 Requirements
+## Requirements
 
 - R ≥ 4.5
 - Bioconductor ≥ 3.19
@@ -93,7 +93,7 @@ source("R/04_features.R")
 
 ---
 
-## 📝 Example Usage
+## Example Usage
 
 ### Test with Example Data
 ```r
@@ -111,7 +111,7 @@ source("run_pipeline.R")
 
 ---
 
-## 🛠️ Customization
+## Customization
 
 ### Modify Filtering Parameters
 Edit `R/02_preprocess.R`:
@@ -144,27 +144,3 @@ Edit `R/04_features.R` to add:
 - [Mass Spectrometry Data Analysis](https://rformassspectrometry.github.io/)
 
 ---
-
-## 📄 License
-
-MIT License - Feel free to modify and distribute.
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
----
-
-## 📧 Contact
-
-For questions or issues, please open a GitHub issue.
-
----
-
-**Last Updated:** 2025-01-01

@@ -1,0 +1,230 @@
+# DRomics Package Tutorial
+
+DRomics는 dose-response 데이터 분석을 위한 R 패키지입니다. 이 튜토리얼은 주요 워크플로우와 proteomics 예제를 포함합니다.
+
+## 설치
+
+```r
+# CRAN에서 설치
+install.packages("DRomics")
+
+# Bioconductor 패키지 (필수)
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(c("DESeq2", "limma"))
+
+# 라이브러리 로드
+library(DRomics)
+```
+
+## 메인 워크플로우 (4단계)
+
+### Step 1: 데이터 임포트 및 전처리
+
+**데이터 형식 요구사항:**
+- 첫 행: item ID, dose1, dose2, dose3, ...
+- 각 행: item별 측정값
+- dose는 숫자 형식
+
+**지원 데이터 타입:**
+
+**1) RNAseq (raw counts)**
+```r
+# 파일에서 임포트
+o.RNAseq <- RNAseqdata("RNAseq_data.txt", transfo.method = "rlog")
+
+# transfo.method: "rlog" (권장) 또는 "vst"
+# backgrounddose: in situ 데이터에서 control로 간주할 최대 dose
+```
+
+**2) Microarray (log2 scale)**
+```r
+o.microarray <- microarraydata("microarray_data.txt", 
+                                norm.method = "cyclicloess")
+
+# norm.method: "cyclicloess" (권장), "quantile", "scale", "none"
+```
+
+**3) Proteomics/Metabolomics (continuous data in log scale)**
+```r
+# Proteomics 데이터 예제
+# intensity 기반 proteomics는 log 변환 후 임포트
+o.proteo <- continuousomicdata("proteomics_data.txt")
+
+# 전처리 권장사항:
+# 1. Missing value 처리 (20-50% 이상 결측시 제거)
+# 2. Half minimum method로 결측값 대체
+# 3. log2 변환 (multi-omics 비교시 권장)
+```
+
+**4) Apical/Anchoring data**
+```r
+o.anchoring <- continuousanchoringdata("apical_data.txt",
+                                        backgrounddose = 0.1)
+```
+
+### Step 2: 유의한 반응 아이템 선택
+
+```r
+s <- itemselect(o.proteo, 
+                select.method = "quadratic",  # "quadratic", "linear", "ANOVA"
+                FDR = 0.01)
+
+# FDR: false discovery rate (0.001-0.1 권장)
+# select.method:
+#   - "quadratic": monotonic + biphasic 선택 (권장)
+#   - "linear": monotonic만 선택
+#   - "ANOVA": replicate 많은 디자인용
+```
+
+### Step 3: Dose-response 모델 피팅
+
+```r
+f <- drcfit(s, progressbar = TRUE)
+
+# 5가지 모델 중 최적 모델 자동 선택:
+# - linear
+# - exponential  
+# - Hill
+# - Gauss-probit
+# - log-Gauss-probit
+
+# 결과 확인
+head(f$fitres)
+
+# 피팅된 곡선 플롯
+plot(f)
+
+# residual 플롯으로 모델 적합성 확인
+plot(f, plot.type = "dose_residuals")
+```
+
+### Step 4: BMD (Benchmark Dose) 계산
+
+```r
+# BMD 계산
+r <- bmdcalc(f, z = 1, x = 10)
+
+# z: BMD-zSD용 (권장)
+# x: BMD-xfold용 (%)
+
+# BMD 분포 플롯
+plot(r, BMDtype = "zSD") + theme_bw()
+
+# Bootstrap으로 confidence interval 계산
+b <- bmdboot(r, niter = 1000, progressbar = TRUE)
+
+# BMD 필터링
+filtered <- bmdfilter(b$res, BMDfilter = "definedCI")
+```
+
+## Proteomics 실전 예제
+
+```r
+# 1. 데이터 준비 (예시 구조)
+# item_id  dose_0_1  dose_0_2  dose_1_1  dose_1_2  dose_10_1  dose_10_2
+# Protein1  1500      1520      1450      1480      1200       1180
+# Protein2  2300      2250      2400      2380      2600       2650
+
+# 2. 데이터 임포트
+proteo_data <- continuousomicdata("proteomics_intensity.txt")
+
+# 데이터 분포 확인
+plot(proteo_data, col = "blue")
+
+# 3. 선택
+s_proteo <- itemselect(proteo_data, 
+                       select.method = "quadratic",
+                       FDR = 0.05)
+
+cat("선택된 단백질 수:", length(s_proteo$selectindex), "\n")
+
+# 4. 모델 피팅
+f_proteo <- drcfit(s_proteo, progressbar = TRUE)
+
+# 모델 분포 확인
+table(f_proteo$fitres$model)
+table(f_proteo$fitres$trend)
+
+# 5. BMD 계산
+r_proteo <- bmdcalc(f_proteo, z = 1)
+
+# 6. Bootstrap CI
+b_proteo <- bmdboot(r_proteo, niter = 500)
+
+# 7. 결과 시각화
+# BMD ECDF
+bmdplot(b_proteo$res, BMDtype = "zSD", add.CI = TRUE) + theme_bw()
+
+# 곡선 플롯 (상위 20개)
+plot(f_proteo, BMDoutput = b_proteo)
+
+# 모든 곡선 한번에
+curvesplot(r_proteo$res, 
+           colorby = "trend",
+           xmax = max(proteo_data$dose)) + theme_bw()
+```
+
+## Biological Annotation 활용
+
+```r
+# 1. Annotation 파일 준비 (예: protein_annotation.txt)
+# protein_id  pathway
+# Protein1    Signal transduction
+# Protein2    Metabolic process
+# ...
+
+annot <- read.table("protein_annotation.txt", 
+                    header = TRUE, 
+                    stringsAsFactors = TRUE)
+
+# 2. 결과와 병합
+extendedres <- merge(x = b_proteo$res, 
+                     y = annot, 
+                     by.x = "id", 
+                     by.y = "protein_id")
+
+# 3. Pathway별 BMD 분포
+bmdplot(extendedres, 
+        BMDtype = "zSD",
+        facetby = "pathway",
+        colorby = "trend") + theme_bw()
+
+# 4. Sensitivity plot (pathway별 민감도)
+sensitivityplot(extendedres,
+                group = "pathway",
+                BMDsummary = "first.quartile") + theme_bw()
+
+# 5. Trend plot (pathway별 반응 패턴)
+trendplot(extendedres, group = "pathway") + theme_bw()
+
+# 6. Pathway별 dose-response 곡선
+curvesplot(extendedres,
+           facetby = "pathway",
+           colorby = "trend",
+           scaling = TRUE) + theme_bw()
+```
+
+## 주요 파라미터 선택 가이드
+
+**FDR (Step 2):**
+- 아이템 수 > 10,000: 0.001-0.01
+- 아이템 수 < 10,000: 0.01-0.05
+
+**BMD 타입 (Step 4):**
+- BMD-zSD (권장): y₀ ± z×SD
+- BMD-xfold: y₀ ± x%×y₀
+
+**Bootstrap iterations:**
+- 최소: 1000
+- 권장: 500-1000 (빠른 확인용)
+
+## 결과 해석
+
+**주요 출력 컬럼:**
+- `model`: 선택된 최적 모델
+- `trend`: inc/dec/U/bell
+- `BMD.zSD`: BMD 값
+- `BMD.zSD.lower/upper`: 95% CI
+- `typology`: 세부 곡선 형태
+

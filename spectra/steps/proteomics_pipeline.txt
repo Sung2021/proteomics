@@ -1,0 +1,170 @@
+# Proteomics Pipeline - Complete Repository Structure
+
+## 📁 Directory Structure
+```
+proteomics-pipeline/
+ ├── raw/               # Place your mzML files here
+ ├── R/
+ │    ├── 01_load.R
+ │    ├── 02_preprocess.R
+ │    ├── 03_qc.R
+ │    └── 04_features.R
+ ├── output/
+ │    ├── qc_plots/
+ │    ├── processed/
+ │    └── features/
+ ├── run_pipeline.R     # Master script to run all steps
+ ├── setup.R            # Initial setup and package installation
+ └── README.md
+```
+
+---
+
+## 🚀 Quick Start
+
+### 1. Setup
+```r
+source("setup.R")
+```
+
+### 2. Add Data
+Place your `.mzML` files in the `raw/` directory.
+
+### 3. Run Pipeline
+```r
+source("run_pipeline.R")
+```
+
+Or run individual steps:
+```r
+source("R/01_load.R")
+source("R/02_preprocess.R")
+source("R/03_qc.R")
+source("R/04_features.R")
+```
+
+---
+
+## 📋 Pipeline Overview
+
+### Step 1: Load Data (`01_load.R`)
+- Reads all mzML files from `raw/` directory
+- Creates Spectra object
+- Saves to `output/processed/raw_spectra.rds`
+
+### Step 2: Preprocess (`02_preprocess.R`)
+- Filters empty spectra
+- Removes low-intensity signals (< 100)
+- Restricts m/z range to 300-2000
+- Saves to `output/processed/clean_spectra.rds`
+
+### Step 3: Quality Control (`03_qc.R`)
+- Generates TIC (Total Ion Current) plot
+- Saves plot to `output/qc_plots/tic.png`
+
+### Step 4: Feature Extraction (`04_features.R`)
+- Extracts MS2 features:
+  - Base peak intensity (BPI)
+  - Total ion current
+  - Number of peaks per spectrum
+- Saves to `output/features/features.csv`
+
+---
+
+## 📊 Output Files
+
+| File | Description |
+|------|-------------|
+| `output/processed/raw_spectra.rds` | Raw loaded spectra |
+| `output/processed/clean_spectra.rds` | Preprocessed spectra |
+| `output/qc_plots/tic.png` | TIC chromatogram |
+| `output/features/features.csv` | Extracted MS2 features |
+
+---
+
+## 🔧 Requirements
+
+- R ≥ 4.5
+- Bioconductor ≥ 3.19
+- Packages:
+  - Spectra
+  - S4Vectors
+  - msdata (for testing)
+
+---
+
+## 📝 Example Usage
+
+### Test with Example Data
+```r
+# Use msdata package example files
+library(msdata)
+file.copy(
+  system.file("sciex", package = "msdata", mustWork = TRUE),
+  "raw/",
+  recursive = TRUE
+)
+
+# Run pipeline
+source("run_pipeline.R")
+```
+
+---
+
+## 🛠️ Customization
+
+### Modify Filtering Parameters
+Edit `R/02_preprocess.R`:
+```r
+# Change intensity threshold
+filterIntensity(c(YOUR_MIN, Inf))
+
+# Change m/z range
+filterMzRange(c(YOUR_MIN, YOUR_MAX))
+```
+
+### Add Additional QC Plots
+Edit `R/03_qc.R` to include:
+- Base peak chromatogram
+- MS level distribution
+- Retention time distribution
+
+### Extract More Features
+Edit `R/04_features.R` to add:
+- Precursor m/z
+- Collision energy
+- Scan number
+
+---
+
+## 📖 References
+
+- [Spectra Bioconductor Package](https://bioconductor.org/packages/Spectra)
+- [SpectraTutorials](https://jorainer.github.io/SpectraTutorials/)
+- [Mass Spectrometry Data Analysis](https://rformassspectrometry.github.io/)
+
+---
+
+## 📄 License
+
+MIT License - Feel free to modify and distribute.
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+---
+
+## 📧 Contact
+
+For questions or issues, please open a GitHub issue.
+
+---
+
+**Last Updated:** 2025-01-01

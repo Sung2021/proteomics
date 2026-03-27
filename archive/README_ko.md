@@ -44,16 +44,16 @@ python python/run_pipeline.py --mode dose_response  # Branch B
 ```
 proteomics/
 ├── R/
-│   ├── 01_load_spectra.R         # Load mzML files (Spectra)
-│   ├── 02_preprocess.R           # Filter and clean spectra
-│   ├── 03_qc.R                   # TIC / MS-level QC plots
-│   ├── 04_feature_extraction.R   # Extract MS2 feature matrix
+│   ├── 01_load_spectra.R         # mzML 로딩 (Spectra)
+│   ├── 02_preprocess.R           # 스펙트라 필터링
+│   ├── 03_qc.R                   # TIC / MS-level QC
+│   ├── 04_feature_extraction.R   # MS2 feature matrix 추출
 │   ├── 05a_limpa_dea.R           # [Branch A] DPC-quant + DEA → final output
 │   ├── 05b_limpa_prefilter.R     # [Branch B] DEA → responding protein filter
-│   └── 06_dromics_bmd.R          # [Branch B] BMD calculation
-├── config.yaml                   # Centralized paths and parameters
-├── python/run_pipeline.py        # Pipeline orchestrator
-└── archive/                      # Original tutorial scripts (personal reference)
+│   └── 06_dromics_bmd.R          # [Branch B] BMD 계산
+├── config.yaml                   # 경로 · 파라미터 중앙화
+├── python/run_pipeline.py        # 파이프라인 오케스트레이터
+└── archive/                      # 원본 튜토리얼 스크립트 보관
 ```
 
 ---
@@ -62,9 +62,9 @@ proteomics/
 
 ### Common steps (01–04): Raw MS processing
 
-**What:** Load `.mzML` files → remove low-quality spectra → QC visualization → extract MS2 feature matrix.
+**What:** `.mzML` 파일 로딩 → 불량 스펙트라 제거 → QC 시각화 → MS2 feature matrix 생성.
 
-**Why:** `Spectra` (Bioconductor) processes mzML via lazy-loading, making it memory-efficient for large MS datasets. The stepwise design (`01 → 04`) makes it straightforward to re-run or swap individual stages.
+**Why:** `Spectra` (Bioconductor) 패키지는 mzML을 lazy-loading 방식으로 처리해 대용량 MS 데이터를 메모리 효율적으로 다룬다. 단계별 분리 구조(`01 → 04`)로 중간 단계 재실행이 용이하다.
 
 | Script | Output |
 |---|---|
@@ -77,38 +77,38 @@ proteomics/
 
 ### Branch A — `05a_limpa_dea.R`: Group comparison (final output)
 
-**What:** Quantify peptide-level intensities to the protein level and detect differentially expressed proteins (DEPs) between experimental groups.
+**What:** 펩타이드 수준 데이터를 단백질로 정량화하고 그룹 간 차등발현단백질(DEP)을 검출한다.
 
-**Why:** `limpa`'s DPC-quant explicitly models the Missing Not At Random (MNAR) structure — where low-abundance peptides are more likely to be missing — and propagates that uncertainty as precision weights into `limma`. This reduces false positives compared to standard imputation.
+**Why:** `limpa`의 DPC-quant는 결측값이 intensity에 의존하는 MNAR 구조를 모델링해 불확실성을 `limma` 가중치로 전달한다. 단순 imputation 대비 위양성 감소.
 
-**Result:** `dea_results.csv` (logFC, adj.P.Val per protein), `volcano.png`
+**Result:** `dea_results.csv` (logFC, adj.P.Val), `volcano.png`
 
 ---
 
 ### Branch B — `05b_limpa_prefilter.R` + `06_dromics_bmd.R`: Dose-response (final output)
 
-**What (05b):** Run DEA across all doses vs. control to identify dose-responding proteins, then export that list as input to DROmics. DEA here is a **filter tool**, not the final output.
+**What (05b):** DEA로 dose에 반응하는 단백질을 필터링 → DROmics 입력 리스트 생성. DEA 자체가 최종 목적이 아니라 **BMD 계산을 위한 필터 도구**로 사용된다.
 
-**What (06):** Fit five dose-response models (linear, exponential, Hill, Gauss-probit, log-Gauss-probit) to each responding protein and calculate the Benchmark Dose (BMD-zSD).
+**What (06):** 반응 단백질에 5가지 dose-response 모델(linear, exponential, Hill, Gauss-probit, log-Gauss-probit)을 피팅하고 BMD-zSD를 계산한다.
 
-**Why:** Simple group comparison (treated vs. control) only answers "does a change exist?" BMD answers "at what dose does the change begin?" This is essential for prioritizing the most sensitive molecular targets in toxicology and drug safety studies.
+**Why:** 단순 그룹 비교(treated vs. control)는 "변화하는가"만 답한다. BMD는 "어느 농도부터 변하기 시작하는가"를 답한다. 독성학·약물 안전성 연구에서 민감도 순위 산정에 필수적이다.
 
-**Result:** `bmd_results.csv` (per-protein BMD + 95% CI), `bmd_heatmap.png`
+**Result:** `bmd_results.csv` (per-protein BMD + CI), `bmd_heatmap.png`
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Set study.mode in config.yaml ("group" or "dose_response")
+# 1. config.yaml에서 study.mode 확인 (group 또는 dose_response)
 
-# 2. Run the full pipeline
+# 2. 전체 파이프라인 실행
 python python/run_pipeline.py
 
-# 3. Run specific steps only
+# 3. 특정 단계만 실행
 python python/run_pipeline.py --steps 1 2 3
 
-# 4. Override branch explicitly
+# 4. Branch 명시적 지정
 python python/run_pipeline.py --mode dose_response
 ```
 

@@ -1,0 +1,63 @@
+# ============================================================================
+# config.yaml — Proteomics pipeline configuration
+# ============================================================================
+
+# Study design: "group" (Branch A) or "dose_response" (Branch B)
+study:
+  mode: dose_response         # "group" | "dose_response"
+  group_col: condition        # column in sample_metadata holding group label
+  reference_group: control
+  treatment_group: treated    # used in Branch A only
+  dose_col: dose              # column in sample_metadata holding numeric dose (Branch B)
+
+# File paths
+paths:
+  # Input
+  raw_mzml: data/raw/mzml
+  sample_metadata: data/raw/sample_metadata.csv  # columns: sample_id, condition, dose
+  peptide_data: data/raw/peptide_intensities.csv
+
+  # Intermediate
+  raw_spectra: data/processed/raw_spectra.rds
+  clean_spectra: data/processed/clean_spectra.rds
+  features: data/processed/features.csv
+  protein_matrix: data/processed/protein_matrix.csv        # Branch B
+  responding_proteins: data/processed/responding_proteins.csv  # Branch B
+
+  # Results — Branch A (group)
+  dea_results: results/tables/dea_results.csv
+  volcano_plot: results/figures/volcano.png
+
+  # Results — Branch B (dose-response)
+  bmd_results: results/tables/bmd_results.csv
+  bmd_heatmap: results/figures/bmd_heatmap.png
+
+  # QC
+  qc_plots: results/qc
+
+# Preprocessing filters (Step 2)
+preprocessing:
+  min_intensity: 100
+  mz_range:
+    - 300
+    - 2000
+
+# limpa settings (Steps 5a / 5b)
+limpa:
+  peptide_col: Peptide
+  protein_col: Protein
+  sample_col: Sample
+  intensity_col: Intensity
+
+# Significance thresholds
+thresholds:
+  adj_pval: 0.05            # Branch A volcano + significant calls
+  log2fc: 1.0               # Branch A volcano filter
+  prefilter_adj_pval: 0.05  # Branch B prefilter cutoff
+
+# DROmics settings (Step 6 — Branch B only)
+dromics:
+  select_method: quadratic  # "quadratic" | "linear" | "ANOVA"
+  fdr: 0.01
+  bmd_z: 1                  # z × SD threshold for BMD
+  bmd_x: 10                 # x% change from baseline (alternative definition)

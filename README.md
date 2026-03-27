@@ -1,6 +1,6 @@
 # proteomics
 
-> End-to-end proteomics analysis: raw MS spectra → differential expression → dose-response modeling
+> End-to-end proteomics analysis pipeline: raw MS spectra → differential expression → dose-response modeling
 
 ---
 
@@ -9,70 +9,108 @@
 ```
 mzML files
     │
-    ▼
-[spectra]  Load → Preprocess → QC → Feature Extraction
+    ├─ 01_load_spectra.R       [Common] Load mzML → Spectra object
+    ├─ 02_preprocess.R         [Common] Filter empty / low-intensity spectra
+    ├─ 03_qc.R                 [Common] TIC + MS-level QC plots
+    ├─ 04_feature_extraction.R [Common] Extract MS2 feature matrix
     │
-    ▼
-[limpa]    Peptide → Protein Quantification → Differential Expression (limma)
-    │
-    ▼
-[DROmics]  Dose-Response Modeling → BMD Calculation → Pathway Sensitivity
+    ├──── study.mode: group ─────────────────────────────────┐
+    │                                                         │
+    │  05a_limpa_dea.R   DPC-quant + limma DEA               │
+    │                    → dea_results.csv                    │
+    │                    → volcano.png            [FINAL]     │
+    │                                                         │
+    └──── study.mode: dose_response ─────────────────────────┘
+         │
+         ├─ 05b_limpa_prefilter.R   DPC-quant + limma (all doses vs ctrl)
+         │                          → responding_proteins.csv  [FILTER]
+         │
+         └─ 06_dromics_bmd.R        Dose-response fit + BMD calc
+                                    → bmd_results.csv
+                                    → bmd_heatmap.png          [FINAL]
+```
+
+Switch branches by editing `study.mode` in `config.yaml`, or via CLI:
+
+```bash
+python python/run_pipeline.py --mode group          # Branch A
+python python/run_pipeline.py --mode dose_response  # Branch B
 ```
 
 ---
 
-## Modules
+## Repository Structure
 
-### 1. `spectra/` — Raw MS Data Processing
+```
+proteomics/
+├── R/
+│   ├── 01_load_spectra.R         # mzML 로딩 (Spectra)
+│   ├── 02_preprocess.R           # 스펙트라 필터링
+│   ├── 03_qc.R                   # TIC / MS-level QC
+│   ├── 04_feature_extraction.R   # MS2 feature matrix 추출
+│   ├── 05a_limpa_dea.R           # [Branch A] DPC-quant + DEA → final output
+│   ├── 05b_limpa_prefilter.R     # [Branch B] DEA → responding protein filter
+│   └── 06_dromics_bmd.R          # [Branch B] BMD 계산
+├── config.yaml                   # 경로 · 파라미터 중앙화
+├── python/run_pipeline.py        # 파이프라인 오케스트레이터
+└── archive/                      # 원본 튜토리얼 스크립트 보관
+```
 
-**What:** Ingests raw `.mzML` mass spectrometry files and extracts a clean feature matrix ready for downstream statistical analysis.
+---
 
-**Why:** `MsBackendMzR` / `Spectra` (Bioconductor) provides a memory-efficient, lazy-loading interface to mzML — essential for large MS datasets where loading everything into RAM is impractical. The modular step design (load → preprocess → QC → features) makes it easy to swap or re-run individual stages.
+## Scripts
 
-**Key Steps:**
-| Script | Purpose |
+### Common steps (01–04): Raw MS processing
+
+**What:** `.mzML` 파일 로딩 → 불량 스펙트라 제거 → QC 시각화 → MS2 feature matrix 생성.
+
+**Why:** `Spectra` (Bioconductor) 패키지는 mzML을 lazy-loading 방식으로 처리해 대용량 MS 데이터를 메모리 효율적으로 다룬다. 단계별 분리 구조(`01 → 04`)로 중간 단계 재실행이 용이하다.
+
+| Script | Output |
 |---|---|
-| `steps/load_script.r` | Read mzML → create `Spectra` object |
-| `steps/preprocess_script.r` | Filter empty spectra, remove low-intensity signals (< 100), restrict m/z 300–2000 |
-| `steps/qc_script.r` | TIC distribution, peak count QC plots |
-| `steps/features_script.r` | Bin spectra, extract intensity feature matrix |
-| `steps/run_pipeline.r` | Master script: runs all steps in order |
-
-**Result:** A sample × feature intensity matrix (`output/features/`) and QC plots (`output/qc_plots/`) confirming data quality before statistical testing.
+| `01_load_spectra.R` | `data/processed/raw_spectra.rds` |
+| `02_preprocess.R` | `data/processed/clean_spectra.rds` |
+| `03_qc.R` | `results/qc/tic.png`, `ms_level_distribution.png` |
+| `04_feature_extraction.R` | `data/processed/features.csv` |
 
 ---
 
-### 2. `limpa/` — Peptide-to-Protein Quantification & Differential Expression
+### Branch A — `05a_limpa_dea.R`: Group comparison (final output)
 
-**What:** Aggregates peptide-level intensity measurements to protein level and identifies differentially expressed proteins between experimental groups using a precision-weighted linear model.
+**What:** 펩타이드 수준 데이터를 단백질로 정량화하고 그룹 간 차등발현단백질(DEP)을 검출한다.
 
-**Why:** Standard protein summarization (e.g., mean/median) ignores the fact that missing peptide values are not random — they are more likely to occur for low-abundance peptides (Missing Not At Random, MNAR). `limpa` explicitly models this via a **Detection Probability Curve (DPC)**, then propagates the resulting uncertainty as precision weights into `limma`'s linear model. This reduces false positives caused by imputation artifacts.
+**Why:** `limpa`의 DPC-quant는 결측값이 intensity에 의존하는 MNAR 구조를 모델링해 불확실성을 `limma` 가중치로 전달한다. 단순 imputation 대비 위양성 감소.
 
-**Key Steps:**
-1. Build `limpa` object from peptide-level data
-2. Estimate DPC — models missingness as a function of intensity
-3. `DPCquant()` — summarize peptides → proteins with precision weights
-4. `limmaFit()` + `eBayes()` — differential expression with empirical Bayes variance stabilization
-5. Volcano plot — visualize logFC vs. −log₁₀(adj. p-value)
-
-**Result:** Ranked differential expression table (logFC, adj.P.Val) and a volcano plot highlighting significantly changed proteins (|logFC| > 1, FDR < 0.05).
+**Result:** `dea_results.csv` (logFC, adj.P.Val), `volcano.png`
 
 ---
 
-### 3. `DROmics/` — Dose-Response Modeling & BMD Calculation
+### Branch B — `05b_limpa_prefilter.R` + `06_dromics_bmd.R`: Dose-response (final output)
 
-**What:** Fits dose-response curves to each protein's intensity profile across a dose gradient and calculates the **Benchmark Dose (BMD)** — the dose at which a biologically meaningful response begins.
+**What (05b):** DEA로 dose에 반응하는 단백질을 필터링 → DROmics 입력 리스트 생성. DEA 자체가 최종 목적이 아니라 **BMD 계산을 위한 필터 도구**로 사용된다.
 
-**Why:** Classical pairwise DEA (treated vs. control) only tests whether a change exists at a single dose. BMD analysis identifies *at what dose* each protein starts to change, enabling prioritization of the most sensitive molecular targets. This is critical in toxicology and drug safety studies where dose-response shape matters as much as the presence of an effect.
+**What (06):** 반응 단백질에 5가지 dose-response 모델(linear, exponential, Hill, Gauss-probit, log-Gauss-probit)을 피팅하고 BMD-zSD를 계산한다.
 
-**Key Steps:**
-1. Import continuous proteomics data (`continuousomicdata()`)
-2. Select dose-responsive proteins (`itemselect()`, FDR < 0.05, quadratic trend test)
-3. Fit 5 candidate models (linear, exponential, Hill, Gauss-probit, log-Gauss-probit) — best model selected by AIC
-4. Calculate BMD-zSD with 95% bootstrap CI (`bmdboot()`, n = 1000)
-5. Pathway-level sensitivity analysis (`sensitivityplot()`, `trendplot()`)
+**Why:** 단순 그룹 비교(treated vs. control)는 "변화하는가"만 답한다. BMD는 "어느 농도부터 변하기 시작하는가"를 답한다. 독성학·약물 안전성 연구에서 민감도 순위 산정에 필수적이다.
 
-**Result:** Per-protein BMD estimates with confidence intervals; pathway-level ECDF plots revealing which biological processes are most sensitive to the dose gradient.
+**Result:** `bmd_results.csv` (per-protein BMD + CI), `bmd_heatmap.png`
+
+---
+
+## Quick Start
+
+```bash
+# 1. config.yaml에서 study.mode 확인 (group 또는 dose_response)
+
+# 2. 전체 파이프라인 실행
+python python/run_pipeline.py
+
+# 3. 특정 단계만 실행
+python python/run_pipeline.py --steps 1 2 3
+
+# 4. Branch 명시적 지정
+python python/run_pipeline.py --mode dose_response
+```
 
 ---
 
@@ -83,14 +121,9 @@ mzML files
 BiocManager::install(c("Spectra", "MsBackendMzR", "limpa", "limma", "DESeq2"))
 
 # CRAN
-install.packages(c("DRomics", "data.table", "ggplot2"))
+install.packages(c("DRomics", "yaml", "data.table", "ggplot2"))
 ```
 
-## Data
-
-All modules use **built-in example datasets** from the respective packages:
-- `spectra`: synthetic `.mzML` files generated via `MsBackendMzR`
-- `limpa`: `limpa::testData()` — peptide-level MS intensity data
-- `DROmics`: `DRomics::proteinomics` — yeast proteomics dose-response data (included in package)
-
-To use your own data, replace the data loading step in each module's script with your file path.
+```python
+pip install pyyaml
+```

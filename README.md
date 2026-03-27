@@ -1,4 +1,4 @@
-# proteomics
+# proteomics-dea-bmd-pipeline
 
 > End-to-end proteomics analysis pipeline: raw MS spectra → differential expression → dose-response modeling
 

@@ -1,5 +1,79 @@
-# **R for Mass Spectrometry – Raw Data 튜토리얼 **
-https://rformassspectrometry.github.io/book/sec-raw.html <br>
+# spectra — Raw Mass Spectrometry Data Processing
+
+## What
+
+Processes raw `.mzML` mass spectrometry files through a 4-step pipeline (load → preprocess → QC → feature extraction) to produce a clean sample × feature intensity matrix.
+
+## Why
+
+The Bioconductor `Spectra` package uses a lazy-loading backend (`MsBackendMzR`) that reads spectral data on demand rather than loading everything into memory at once. This is critical for large proteomics experiments where raw mzML files can easily exceed available RAM. The modular step design allows individual stages to be re-run independently without repeating the full pipeline.
+
+## Pipeline
+
+```
+mzML files
+    │
+    ▼
+01_load        Read all mzML → create Spectra object
+               Save: output/processed/raw_spectra.rds
+    │
+    ▼
+02_preprocess  Filter empty spectra
+               Remove low-intensity peaks (< 100)
+               Restrict m/z range: 300 – 2000 Da
+               Save: output/processed/clean_spectra.rds
+    │
+    ▼
+03_qc          TIC (Total Ion Chromatogram) distribution plot
+               Peak count per spectrum plot
+               Save: output/qc_plots/
+    │
+    ▼
+04_features    Bin spectra into discrete m/z windows
+               Build sample × feature intensity matrix
+               Save: output/features/feature_matrix.rds
+```
+
+## Scripts
+
+| File | Purpose |
+|---|---|
+| `setup_script.r` | Package installation and environment setup |
+| `steps/load_script.r` | Load mzML files via MsBackendMzR |
+| `steps/preprocess_script.r` | Filter and clean spectra |
+| `steps/qc_script.r` | Generate QC diagnostic plots |
+| `steps/features_script.r` | Extract feature intensity matrix |
+| `steps/run_pipeline.r` | Master script — runs all steps in order |
+| `spectra_tutorial.r` | In-depth walkthrough of the Spectra class, backends, and filtering |
+
+## Quick Start
+
+```r
+# Run full pipeline
+source("spectra/steps/run_pipeline.r")
+
+# Or run individual steps
+source("spectra/steps/load_script.r")
+source("spectra/steps/preprocess_script.r")
+source("spectra/steps/qc_script.r")
+source("spectra/steps/features_script.r")
+```
+
+## Result
+
+- `output/qc_plots/` — TIC and peak-count distributions confirming sample quality
+- `output/features/feature_matrix.rds` — numeric matrix (samples × m/z bins) ready for statistical analysis
+
+## Reference
+
+[R for Mass Spectrometry — Raw Data](https://rformassspectrometry.github.io/book/sec-raw.html)
+
+## Dependencies
+
+```r
+BiocManager::install(c("Spectra", "MsBackendMzR"))
+```
+
 
 ## **0. 목적**
 
